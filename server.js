@@ -1,12 +1,12 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
-import dotenv from "dotenv";
 import Groq from "groq-sdk";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegStatic from "ffmpeg-static";
 
-dotenv.config();
+import "dotenv/config";
+
 
 const GROQ_KEY = process.env.GROQ_KEY;
 if (!GROQ_KEY || GROQ_KEY === "nasasapceChalleng") {
