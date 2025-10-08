@@ -9,19 +9,31 @@ import "dotenv/config";
 // --- Validação da Chave de API ---
 const GROQ_KEY = process.env.GROQ_KEY;
 
-// A verificação é crucial. Se a chave não estiver definida no ambiente, a aplicação não deve iniciar.
+// Verificação crucial: se a chave não estiver definida no ambiente, a aplicação não deve iniciar.
 if (!GROQ_KEY) {
     console.error(
-        "GROQ_KEY ausente. Defina a variável de ambiente GROQ_KEY com sua chave da Groq."
+        "GROQ_KEY ausente. Defina a variável de ambiente GROQ_KEY com sua chave da Groq no painel do Railway."
     );
     process.exit(1); // Encerra a aplicação se a chave não for encontrada
 }
 
 const app = express();
-app.use(express.json({ limit: "100mb" })); // Aumenta o limite para o payload JSON
+app.use(express.json({ limit: "100mb" }));
 
 const groq = new Groq({ apiKey: GROQ_KEY });
-ffmpeg.setFfmpegPath(ffmpegStatic); // Aponta para o executável do ffmpeg
+ffmpeg.setFfmpegPath(ffmpegStatic);
+
+// --- [NOVO] Endpoint de Health Check ---
+// Use este endpoint para verificar se a API está no ar.
+// Basta acessar a URL principal (ex: https://...up.railway.app/) no navegador.
+app.get("/", (req, res) => {
+    res.status(200).json({ 
+        status: "online", 
+        message: "API de transcrição está no ar.",
+        timestamp: new Date().toISOString() 
+    });
+});
+
 
 // --- Endpoint de Transcrição ---
 app.post("/transcribe", async (req, res) => {
@@ -34,17 +46,14 @@ app.post("/transcribe", async (req, res) => {
                 .json({ sucesso: false, erro: "Parâmetro 'audioBase64' ausente" });
         }
 
-        // Cria um diretório e arquivos temporários para processamento
         const tempDir = "uploads";
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
         const tempFilePath = path.join(tempDir, `audio_${Date.now()}.input`);
         const tempMp3Path = tempFilePath + ".converted.mp3";
 
-        // Remove o prefixo do base64 (ex: data:audio/wav;base64,...)
         const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, "");
         fs.writeFileSync(tempFilePath, Buffer.from(base64Data, "base64"));
 
-        // Converte o arquivo de áudio para MP3 usando ffmpeg
         await new Promise((resolve, reject) => {
             ffmpeg(tempFilePath)
                 .toFormat("mp3")
@@ -56,13 +65,11 @@ app.post("/transcribe", async (req, res) => {
                 .save(tempMp3Path);
         });
 
-        // Envia o áudio em MP3 para a API da Groq para transcrição
         const response = await groq.audio.transcriptions.create({
             file: fs.createReadStream(tempMp3Path),
-            model: "whisper-large-v3", // Modelo de transcrição
+            model: "whisper-large-v3",
         });
 
-        // Limpa os arquivos temporários após o uso
         try {
             if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
             if (fs.existsSync(tempMp3Path)) fs.unlinkSync(tempMp3Path);
@@ -70,7 +77,6 @@ app.post("/transcribe", async (req, res) => {
             console.warn("Não foi possível remover arquivo temporário:", e.message);
         }
 
-        // Retorna a transcrição com sucesso
         res.json({
             sucesso: true,
             texto: response.text,
@@ -88,3 +94,4 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () =>
     console.log(`Servidor rodando na porta ${PORT}`)
 );
+
